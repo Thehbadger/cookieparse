@@ -4,4 +4,3 @@
 #
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
-cc 2c831902c0cba39f191e47ea73842fbe38f08bc8e9fcd9413b8d1c57683603b5 # shrinks to s = [0, 61, 0, 59, 59, 32, 0, 61, 0]

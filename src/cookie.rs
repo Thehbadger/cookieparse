@@ -39,7 +39,7 @@ fn parse<'i>(input: &mut &'i [u8]) -> winnow::Result<HashMap<&'i [u8], &'i [u8]>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use proptest::{collection::vec, prelude::*, string::bytes_regex};
+    use proptest::{prelude::*, string::bytes_regex};
 
     #[test]
     fn test_cookie() {
@@ -78,7 +78,7 @@ mod tests {
 
     proptest! {
         #[test]
-        fn test_all_possible_inputs(s in bytes_regex("(?s-u:([^=]+=[^=]+; )*[^=]+=[^=]+)").unwrap()) {
+        fn test_all_possible_inputs(s in bytes_regex("(?s-u:([^=;]+=[^=;]+; )*[^=;]+=[^=;]+)").unwrap()) {
             CookieMap::parse_from_bytes(&s).unwrap();
         }
     }
