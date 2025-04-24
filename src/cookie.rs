@@ -1,4 +1,6 @@
-use std::{collections::HashMap, ops::Deref};
+//! This crate lets you parse a Header Cookie list. These often look like `cookie1=value1; cookie2=value2`. This is not to be confused with a Set-Cookie, which has a similar, but different format. See [`setcookie`](crate::setcookie) for a parser for those fields.
+//!  Despite what you may believe cookies are just octets not characters <https://httpwg.org/specs/rfc6265.html#cookie> .
+use std::collections::HashMap;
 use winnow::{
     combinator::{alt, separated, separated_pair},
     prelude::*,
@@ -7,30 +9,45 @@ use winnow::{
 
 use crate::error::CookieParseError;
 
-/// This represents a list of cookies. Despite what you may believe cookies are just octets not characters https://httpwg.org/specs/rfc6265.html#cookie .
+/// Cookies are technically just octets.
+/// ## Example
+/// ```
+/// # use cookieparse::cookie::parse_cookies_from_bytes;
+/// let bytes = b"name1=value1; name2=value2";
+/// let map = parse_cookies_from_bytes(bytes).unwrap();
+/// assert_eq!(*map.get("name1".as_bytes()).unwrap(), b"value1");
+/// assert_eq!(*map.get("name2".as_bytes()).unwrap(), b"value2");
+/// ```
 #[allow(dead_code)]
-#[derive(Debug)]
-pub struct CookieMap<'a>(pub HashMap<&'a [u8], &'a [u8]>);
-
-impl<'a> Deref for CookieMap<'a> {
-    type Target = HashMap<&'a [u8], &'a [u8]>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+pub fn parse_cookies_from_bytes(input: &[u8]) -> Result<HashMap<&[u8], &[u8]>, CookieParseError> {
+    parse_bytes
+        .parse(input)
+        .map_err(|e| CookieParseError(e.to_string()))
 }
 
+/// Cookies can be octet values, but your data might all be utf8, so it might be easier just to use str.
+/// ## Example
+/// ```
+/// # use cookieparse::cookie::parse_cookies_from_str;
+/// let string = "name1=value1; name2=value2";
+/// let map = parse_cookies_from_str(string).unwrap();
+/// assert_eq!(*map.get("name1").unwrap(), "value1");
+/// assert_eq!(*map.get("name2").unwrap(), "value2");
+/// ```
 #[allow(dead_code)]
-impl CookieMap<'_> {
-    fn parse_from_bytes(input: &[u8]) -> Result<CookieMap, CookieParseError> {
-        let map = parse
-            .parse(input)
-            .map_err(|e| CookieParseError(e.to_string()))?;
-        Ok(CookieMap(map))
-    }
+pub fn parse_cookies_from_str(input: &str) -> Result<HashMap<&str, &str>, CookieParseError> {
+    parse_str
+        .parse(input)
+        .map_err(|e| CookieParseError(e.to_string()))
 }
 
-fn parse<'i>(input: &mut &'i [u8]) -> winnow::Result<HashMap<&'i [u8], &'i [u8]>> {
+fn parse_bytes<'i>(input: &mut &'i [u8]) -> winnow::Result<HashMap<&'i [u8], &'i [u8]>> {
+    let key_val_parser =
+        separated_pair(take_until(1.., '='), '=', alt((take_until(1.., ';'), rest)));
+    separated(0.., key_val_parser, "; ").parse_next(input)
+}
+
+fn parse_str<'i>(input: &mut &'i str) -> winnow::Result<HashMap<&'i str, &'i str>> {
     let key_val_parser =
         separated_pair(take_until(1.., '='), '=', alt((take_until(1.., ';'), rest)));
     separated(0.., key_val_parser, "; ").parse_next(input)
@@ -42,11 +59,9 @@ mod tests {
     use proptest::{prelude::*, string::bytes_regex};
 
     #[test]
-    fn test_cookie() {
+    fn test_cookie_bytes() {
         let samples = "potato=watermelon; name2=value2; _name3=value3";
-        // let samples = "1111=2222; 3333=4444";
-        let sample_map = CookieMap::parse_from_bytes(samples.as_bytes()).unwrap();
-        dbg!(&sample_map);
+        let sample_map = parse_cookies_from_bytes(samples.as_bytes()).unwrap();
         assert_eq!(
             *sample_map.get("potato".as_bytes()).unwrap(),
             "watermelon".as_bytes()
@@ -61,25 +76,24 @@ mod tests {
         );
     }
 
-    // prop_compose! {
-    //     fn key_or_value()(value in any()::<Vec<u8>>() ) -> Vec<u8> {
-    //         value
-    //     }
-    // }
-
-    // prop_compose! {
-    //     // Generates a value like `xxxx=yyyy`, where x and y are just u8.
-    //     fn key_value()(mut key in any::<Vec<u8>>(), mut val in any::<Vec<u8>>()) -> Vec<u8> {
-    //         key.push(b'=');
-    //         &mut key.append(&mut val);
-    //         key
-    //     }
-    // }
+    #[test]
+    fn test_cookie_str() {
+        let samples = "potato=watermelon; name2=value2; _name3=value3";
+        let sample_map = parse_cookies_from_str(samples).unwrap();
+        assert_eq!(*sample_map.get("potato").unwrap(), "watermelon");
+        assert_eq!(*sample_map.get("name2").unwrap(), "value2");
+        assert_eq!(*sample_map.get("_name3").unwrap(), "value3");
+    }
 
     proptest! {
         #[test]
-        fn test_all_possible_inputs(s in bytes_regex("(?s-u:([^=;]+=[^=;]+; )*[^=;]+=[^=;]+)").unwrap()) {
-            CookieMap::parse_from_bytes(&s).unwrap();
+        fn test_possible_inputs_bytes(s in bytes_regex("(?s-u:([^=;]+=[^=;]+; )*[^=;]+=[^=;]+)").unwrap()) {
+            parse_cookies_from_bytes(&s).unwrap();
+        }
+
+        #[test]
+        fn test_possible_inputs_str(s in "([^=;]+=[^=;]+; )*[^=;]+=[^=;]+") {
+            parse_cookies_from_str(&s).unwrap();
         }
     }
 }
