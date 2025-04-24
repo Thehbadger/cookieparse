@@ -39,6 +39,7 @@ fn parse<'i>(input: &mut &'i [u8]) -> winnow::Result<HashMap<&'i [u8], &'i [u8]>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::{collection::vec, prelude::*, string::bytes_regex};
 
     #[test]
     fn test_cookie() {
@@ -60,4 +61,25 @@ mod tests {
         );
     }
 
+    // prop_compose! {
+    //     fn key_or_value()(value in any()::<Vec<u8>>() ) -> Vec<u8> {
+    //         value
+    //     }
+    // }
+
+    // prop_compose! {
+    //     // Generates a value like `xxxx=yyyy`, where x and y are just u8.
+    //     fn key_value()(mut key in any::<Vec<u8>>(), mut val in any::<Vec<u8>>()) -> Vec<u8> {
+    //         key.push(b'=');
+    //         &mut key.append(&mut val);
+    //         key
+    //     }
+    // }
+
+    proptest! {
+        #[test]
+        fn test_all_possible_inputs(s in bytes_regex("(?s-u:([^=]+=[^=]+; )*[^=]+=[^=]+)").unwrap()) {
+            CookieMap::parse_from_bytes(&s).unwrap();
+        }
+    }
 }
