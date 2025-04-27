@@ -1,9 +1,10 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, str::FromStr};
 
 use winnow::{
-    combinator::{alt, separated_pair},
+    combinator::{Alt, alt, delimited, opt, preceded, separated_pair},
     prelude::*,
-    token::{rest, take_until},
+    stream::AsChar,
+    token::{none_of, rest, take_until, take_while},
 };
 
 use crate::{cookie, error::CookieParseError};
@@ -39,11 +40,61 @@ pub struct Cookie {
 #[derive(Debug, PartialEq, Eq)]
 pub struct CookieName(String);
 
+impl FromStr for CookieName {
+    type Err = CookieParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        todo!()
+    }
+}
+
+fn parse_cookie_name(input: &mut &str) -> winnow::Result<CookieName> {
+    take_while(
+        1..,
+        (
+            0x21,
+            0x23..=0x27,
+            0x2A,
+            0x2B,
+            0x2D,
+            0x2E,
+            0x30..=0x39,
+            0x41..=0x5A,
+            0x5E..=0x7E,
+        ),
+    )
+    .map(|x: &str| CookieName(x.to_string()))
+    .parse_next(input)
+}
+
 /// A <cookie-value> can optionally be wrapped in double quotes and include any US-ASCII character
 /// excluding control characters (ASCII characters 0 up to 31 and ASCII character 127), Whitespace,
 /// double quotes, commas, semicolons, and backslashes.
 #[derive(Debug, PartialEq, Eq)]
 pub struct CookieValue(String);
+
+fn parse_cookie_value(input: &mut &str) -> winnow::Result<CookieValue> {
+    alt((delimited('"', value_parser, '"'), value_parser))
+        .map(|x| CookieValue(x.to_string()))
+        .parse_next(input)
+}
+
+fn value_parser<'a>(input: &mut &'a str) -> winnow::Result<&'a str> {
+    take_while(
+        1..,
+        (
+            0x21,
+            0x23..=0x2B,
+            0x2D,
+            0x2E,
+            0x2F,
+            0x30..=0x3A,
+            0x3C..=0x5B,
+            0x5D..=0x7E,
+        ),
+    )
+    .parse_next(input)
+}
 
 // TODO: Add feature for support for chrono or jiff.
 /// HTTP headers are of the format `Date: <day-name>, <day> <month> <year> <hour>:<minute>:<second> GMT`
@@ -68,15 +119,15 @@ pub fn parse_setcookies_from_str(input: &str) -> Result<Cookie, CookieParseError
     todo!();
 }
 
-fn parse_str<'i>(input: &mut &'i str) -> winnow::Result<HashMap<&'i str, &'i str>> {
-    let kv_pair = separated_pair(take_until(1.., "="), "=", alt((take_until(1.., ";"), rest)));
-
-    let (key, value): (&str, &str) = kv_pair.parse_next(input);
+fn parse_str<'i>(input: &mut &'i str) -> winnow::Result<Cookie> {
+    let (name, value) =
+        separated_pair(parse_cookie_name, "=", parse_cookie_value).parse_next(input)?;
+    if let Some(_) = opt(";").parse_next(input)? {}
 
     // TODO: Add builder.
-    let mut cooke = Cookie {
-        name: todo!(),
-        value: todo!(),
+    let mut cookie = Cookie {
+        name,
+        value,
         domain: todo!(),
         expires: todo!(),
         http_only: todo!(),
@@ -86,7 +137,7 @@ fn parse_str<'i>(input: &mut &'i str) -> winnow::Result<HashMap<&'i str, &'i str
         same_site: todo!(),
         secure: todo!(),
     };
-    todo!();
+    Ok(cookie)
 }
 
 #[cfg(test)]
