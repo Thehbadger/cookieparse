@@ -2,10 +2,11 @@ use std::{collections::HashMap, path::PathBuf};
 
 use winnow::{
     combinator::{alt, separated_pair},
+    prelude::*,
     token::{rest, take_until},
 };
 
-use crate::error::CookieParseError;
+use crate::{cookie, error::CookieParseError};
 
 /// Represents a SetCookie header. Reference here: <https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie>
 #[derive(Debug, PartialEq, Eq)]
@@ -69,6 +70,22 @@ pub fn parse_setcookies_from_str(input: &str) -> Result<Cookie, CookieParseError
 
 fn parse_str<'i>(input: &mut &'i str) -> winnow::Result<HashMap<&'i str, &'i str>> {
     let kv_pair = separated_pair(take_until(1.., "="), "=", alt((take_until(1.., ";"), rest)));
+
+    let (key, value): (&str, &str) = kv_pair.parse_next(input);
+
+    // TODO: Add builder.
+    let mut cooke = Cookie {
+        name: todo!(),
+        value: todo!(),
+        domain: todo!(),
+        expires: todo!(),
+        http_only: todo!(),
+        max_age: todo!(),
+        partitioned: todo!(),
+        path: todo!(),
+        same_site: todo!(),
+        secure: todo!(),
+    };
     todo!();
 }
 
